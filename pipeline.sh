@@ -36,7 +36,7 @@ OUT_PARQUET="${PROCESSED_DIR}/storms_${YEAR}.parquet"
 # -----------------------------------------------------------------------------
 
 echo "[1/4] Setting up directories"
-# [TODO] Use mkdir -p to create RAW_DIR and PROCESSED_DIR. Both should be
+# Use mkdir -p to create RAW_DIR and PROCESSED_DIR. Both should be
 # safe to call even if the directories already exist.
 mkdir -p "$RAW_DIR" "$PROCESSED_DIR"
 
@@ -51,6 +51,20 @@ echo "[2/4] Downloading monthly Storm Events files"
 #   --fail   exit non-zero on HTTP errors (4xx/5xx)
 #
 # Skip the download if the file already exists (idempotency).
+
+curl -L --fail "$BASE_URL/" \
+  | grep -o 'StormEvents_details_[^"]*\.csv' \
+  | sort -u \
+  | while read -r FILE_NAME; do
+      OUT_FILE="${RAW_DIR}/${FILE_NAME}"
+
+      if [ -f "$OUT_FILE" ]; then
+        echo "  Skipping existing file: $FILE_NAME"
+      else
+        echo "  Downloading: $FILE_NAME"
+        curl -L --fail -o "$OUT_FILE" "${BASE_URL}/${FILE_NAME}"
+      fi
+    done
 
 # -----------------------------------------------------------------------------
 # Step 3: Decompress
