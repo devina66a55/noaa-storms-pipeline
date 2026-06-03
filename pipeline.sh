@@ -67,20 +67,40 @@ curl -L --fail "$BASE_URL/" \
     done
 
 # -----------------------------------------------------------------------------
-# Step 3: Decompress
+# Step 3: Combine monthly csv files into one
 # -----------------------------------------------------------------------------
+echo "[3/4] Combining monthly CSVs"
 
-echo "[3/4] Decompressing"
-# [TODO] Use gunzip to decompress RAW_GZ into RAW_CSV.
+# Skip if the combined file already exists.
+if [ -f "$COMBINED_CSV" ]; then
+    echo "  Combined CSV already exists: $COMBINED_CSV"
+else
+    FIRST_FILE=$(ls "$RAW_DIR"/StormEvents_details_*.csv | head -n 1)
+
+    # Write header from first file.
+    head -n 1 "$FIRST_FILE" > "$COMBINED_CSV"
+
+    # Append data rows from every monthly file.
+    for FILE in "$RAW_DIR"/StormEvents_details_*.csv; do
+        echo "  Adding $(basename "$FILE")"
+        tail -n +2 "$FILE" >> "$COMBINED_CSV"
+    done
+
+    echo "  Created: $COMBINED_CSV"
+fi
+
+
+echo "[3/4] Combining monthly CSV files"
+# [TODO] Use cat to combine all CSV files in RAW_DIR into COMBINED_CSV.
 # The -k flag keeps the original .gz so the pipeline can rerun.
-# Skip this step if RAW_CSV already exists.
+# Skip this step if COMBINED_CSV already exists.
 
 # -----------------------------------------------------------------------------
 # Step 4: Convert CSV to GeoParquet
 # -----------------------------------------------------------------------------
 
 echo "[4/4] Converting to GeoParquet"
-# [TODO] Use ogr2ogr to convert RAW_CSV into a GeoParquet file at OUT_PARQUET.
+# [TODO] Use ogr2ogr to convert COMBINED_CSV into a GeoParquet file at OUT_PARQUET.
 #
 # The CSV uses BEGIN_LON / BEGIN_LAT for the storm start point. ogr2ogr can
 # pick those up if you tell it the column names with -oo:
