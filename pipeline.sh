@@ -31,6 +31,9 @@ COMBINED_CSV="${RAW_DIR}/storms_${YEAR}_details.csv"
 # Final analysis-ready output.
 OUT_PARQUET="${PROCESSED_DIR}/storms_${YEAR}.parquet"
 
+COMBINED_LOCATIONS_CSV="${RAW_DIR}/storms_${YEAR}_locations.csv"
+JOINED_CSV="${RAW_DIR}/storms_${YEAR}_joined.csv"
+
 # -----------------------------------------------------------------------------
 # Step 1: Set up directories
 # -----------------------------------------------------------------------------
@@ -43,8 +46,6 @@ mkdir -p "$RAW_DIR" "$PROCESSED_DIR"
 # -----------------------------------------------------------------------------
 # Step 2: Download the raw file
 # -----------------------------------------------------------------------------
-
-echo "[2/4] Downloading monthly Storm Events files"
 # [TODO] Use curl to download URL into RAW_GZ. Suggested flags:
 #   -L       follow redirects
 #   -o       write to a specific output file path
@@ -52,8 +53,10 @@ echo "[2/4] Downloading monthly Storm Events files"
 #
 # Skip the download if the file already exists (idempotency).
 
+echo "[2/4] Downloading monthly Storm Events detail and location files"
+
 curl -L --fail "$BASE_URL/" \
-  | grep -o 'StormEvents_details_[^"]*\.csv' \
+  | grep -o 'StormEvents_\(details\|locations\)_[^"]*\.csv' \
   | sort -u \
   | while read -r FILE_NAME; do
       OUT_FILE="${RAW_DIR}/${FILE_NAME}"
@@ -69,37 +72,51 @@ curl -L --fail "$BASE_URL/" \
 # -----------------------------------------------------------------------------
 # Step 3: Combine monthly csv files into one
 # -----------------------------------------------------------------------------
-echo "[3/4] Combining monthly CSVs"
+echo "[3/4] Combining monthly CSV files"
 
-# Skip if the combined file already exists.
-if [ -f "$COMBINED_CSV" ]; then
-    echo "  Combined CSV already exists: $COMBINED_CSV"
+if [ -f "$COMBINED_CSV" ] && [ -f "$COMBINED_LOCATIONS_CSV" ]; then
+    echo "  Combined CSVs already exist"
 else
-    FIRST_FILE=$(ls "$RAW_DIR"/StormEvents_details_*.csv | head -n 1)
+    FIRST_DETAILS=$(ls "$RAW_DIR"/StormEvents_details_*.csv | head -n 1)
+    head -n 1 "$FIRST_DETAILS" > "$COMBINED_CSV"
 
-    # Write header from first file.
-    head -n 1 "$FIRST_FILE" > "$COMBINED_CSV"
-
-    # Append data rows from every monthly file.
     for FILE in "$RAW_DIR"/StormEvents_details_*.csv; do
-        echo "  Adding $(basename "$FILE")"
+        echo "  Adding details: $(basename "$FILE")"
         tail -n +2 "$FILE" >> "$COMBINED_CSV"
     done
 
-    echo "  Created: $COMBINED_CSV"
+    FIRST_LOCATIONS=$(ls "$RAW_DIR"/StormEvents_locations_*.csv | head -n 1)
+    head -n 1 "$FIRST_LOCATIONS" > "$COMBINED_LOCATIONS_CSV"
+
+    for FILE in "$RAW_DIR"/StormEvents_locations_*.csv; do
+        echo "  Adding locations: $(basename "$FILE")"
+        tail -n +2 "$FILE" >> "$COMBINED_LOCATIONS_CSV"
+    done
 fi
 
-
-echo "[3/4] Combining monthly CSV files"
 # [TODO] Use cat to combine all CSV files in RAW_DIR into COMBINED_CSV.
 # The -k flag keeps the original .gz so the pipeline can rerun.
 # Skip this step if COMBINED_CSV already exists.
 
+
 # -----------------------------------------------------------------------------
-# Step 4: Convert CSV to GeoParquet
+# Step 4: Convert locations CSV to GeoParquet
 # -----------------------------------------------------------------------------
 
-echo "[4/4] Converting to GeoParquet"
+echo "[4/4] Converting locations to GeoParquet"
+
+if [ -f "$OUT_PARQUET" ]; then
+    echo "  Output already exists: $OUT_PARQUET"
+else
+    ogr2ogr \
+      -f Parquet "$OUT_PARQUET" "$COMBINED_LOCATIONS_CSV" \
+      -oo X_POSSIBLE_NAMES=lon \
+      -oo Y_POSSIBLE_NAMES=lat \
+      -a_srs EPSG:4326
+
+    echo "  Created: $OUT_PARQUET"
+fi
+
 # [TODO] Use ogr2ogr to convert COMBINED_CSV into a GeoParquet file at OUT_PARQUET.
 #
 # The CSV uses BEGIN_LON / BEGIN_LAT for the storm start point. ogr2ogr can
