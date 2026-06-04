@@ -1,43 +1,79 @@
 # NOAA Storms Pipeline
 
-A one-command pipeline that downloads a year of NOAA Storm Events data, converts it to GeoParquet, and lands it ready for analysis in DuckDB, GeoPandas, or QGIS.
+A Bash pipeline that downloads NOAA Storm Events data, combines monthly files into annual datasets, and creates a GeoParquet file that can be opened directly in QGIS or queried with DuckDB.
 
 ## What it does
 
-`pipeline.sh` takes a year (default: 2024), pulls the raw `details` file from NOAA's public archive, decompresses it, and converts it to a single GeoParquet file at `data/processed/storms_{YEAR}.parquet`.
+`pipeline.sh` takes a year (default: 2024), downloads the NOAA Storm Events **details** and **locations** files for each month, combines them into annual datasets, and converts the locations data into a GeoParquet file at:
 
-Total runtime: about 90 seconds for a typical year on a home internet connection.
+```text
+data/processed/storms_{YEAR}.parquet
+```
+
+The script is idempotent, meaning it can be run multiple times without re-downloading or rebuilding files that already exist.
 
 ## The data
 
-- **Source:** [NOAA Storm Events Database](https://www.ncei.noaa.gov/data/storm-events/)
-- **License:** Public domain (US federal data)
-- **What's in it:** every recorded storm event in the United States for the given year, including type, location, and damages
+* **Source:** NOAA Storm Events Database
+* **License:** Public domain (US federal data)
+* **What's in it:** storm event records and associated location points across the United States
+
+NOAA currently publishes Storm Events data as monthly CSV files. During this project I discovered that the original project scaffold referenced an older NOAA download structure, so the pipeline was adapted to work with NOAA's current archive layout.
 
 ## How to run it
 
-Requires GDAL (for `ogr2ogr`) and standard Unix utilities (`curl`, `gunzip`).
+Requirements:
+
+* Git Bash (or another Bash environment)
+* GDAL / ogr2ogr
+* curl
+
+Clone the repository:
 
 ```bash
 git clone https://github.com/{your-username}/noaa-storms-pipeline.git
 cd noaa-storms-pipeline
-chmod +x pipeline.sh
-./pipeline.sh
 ```
 
-To run for a specific year:
+Run the pipeline:
 
 ```bash
-./pipeline.sh 2023
+bash pipeline.sh
 ```
+
+Or specify a year:
+
+```bash
+bash pipeline.sh 2023
+```
+
+The output GeoParquet file will be written to:
+
+```text
+data/processed/storms_2024.parquet
+```
+
+## Output
+
+The resulting GeoParquet can be:
+
+* Opened directly in QGIS
+* Queried using DuckDB
+* Read with GeoPandas
+* Used as input to other geospatial workflows
 
 ## What I learned
 
-[Two or three sentences. Be specific. What was harder than expected? What would you do differently? This is the part hiring managers actually read.]
+I expected this project to be mostly about writing a Bash script, but a surprising amount of time was spent investigating the source data. The project instructions referenced an older NOAA download structure that no longer matched the current archive, so I had to inspect NOAA's directory layout and adjust the workflow to use monthly files instead.
+
+I also learned how useful it is to build and test a pipeline one step at a time. Creating small Git commits after each working stage made it much easier to troubleshoot problems and avoid breaking earlier work.
 
 ## Stack
 
-- bash
-- curl
-- GDAL / ogr2ogr
-- GeoParquet
+* Bash
+* Git
+* curl
+* GDAL / ogr2ogr
+* GeoParquet
+* QGIS
+* DuckDB
